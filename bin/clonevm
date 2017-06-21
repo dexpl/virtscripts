@@ -1,0 +1,35 @@
+#!/bin/bash
+
+while getopts ":s:x" opt ; do
+	case ${opt} in
+		s) srcVM="${OPTARG}" ;;
+		x) set -x ;;
+		\:) echo "-${OPTARG} requires an argument">&2 ; exit 1 ;;
+		*) echo "-${OPTARG}: unknown option">&2 ; exit 1 ;;
+	esac
+done
+shift $(($OPTIND - 1));
+
+srcVM=${srcVM:-cent7template}
+# TODO more than one dstVM at once
+dstVM="$1"
+
+[ -n "${dstVM}" ] || exit 1
+
+# Exit 2 if ${dstVM} already exists
+virsh list --all --name | grep -xe "${dstVM}" && exit 2
+
+virsh domstate "${srcVM}" | grep -qxe 'paused' -e 'shut off' || virsh suspend "${srcVM}"
+virt-clone --auto-clone -n "${dstVM}" -o "${srcVM}"
+virsh domstate "${srcVM}" | grep -qxe 'paused' && virsh resume "${srcVM}"
+for srcDisk in $(virsh domblklist "${dstVM}" --details | awk '$2 == "disk" { print($4) }') ; do
+	pool=$(virsh vol-pool "${srcDisk}")
+	srcDiskName=$(virsh vol-name "${srcDisk}")
+	dstDiskName=$(echo "${srcDiskName}" | sed "s/${srcVM}/${dstVM}/g;s/-clone//") # TODO rewrite on bash
+# Do nothing if a ${dstDiskName} already exists.
+# TODO emerge a warning
+	virsh vol-info "${dstDiskName}" > /dev/null 2>&1 && continue
+	virsh vol-clone "${srcDiskName}" "${dstDiskName}" --pool "${pool}"
+	virsh dumpxml "${dstVM}" | sed "s/${srcDiskName}/${dstDiskName}/g" | virsh define /dev/stdin
+	virsh vol-delete "${srcDiskName}" --pool "${pool}"
+done

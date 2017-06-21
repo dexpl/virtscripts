@@ -1,0 +1,14 @@
+#!/bin/sh
+
+vm=$1
+action=$(basename ${0})
+action=${action/vm-if/}
+
+case "${action}" in
+	list) cmd=cat ;;
+	query|up|down)
+		[ "${action}" == "query" ] && cmd="xargs -I % virsh domif-getlink ${vm} %" || cmd="xargs -I % virsh domif-setlink ${vm} % ${action}"
+	;;
+	*) echo "Unknown action ${action}">&2 ; exit 1 ;;
+esac
+virsh domiflist ${vm} | awk '$2 == "network" || $2 == "bridge" { print($NF) }' | ${cmd}
