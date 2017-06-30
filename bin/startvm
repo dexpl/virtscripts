@@ -1,0 +1,9 @@
+#!/bin/sh
+
+[ $# -eq 1 ] && {
+	virsh start ${1}
+	virt-viewer -r -w ${1} &
+} || {
+	echo Usage: $(basename $0) vmName>&2
+	exit 1
+}
