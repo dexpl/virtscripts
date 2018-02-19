@@ -1,7 +1,8 @@
 #!/bin/bash
 
-while getopts ":s:x" opt ; do
+while getopts ":ls:x" opt ; do
 	case ${opt} in
+		l) virsh list --all ; exit 0 ;;
 		s) srcVM="${OPTARG}" ;;
 		x) set -x ;;
 		\:) echo "-${OPTARG} requires an argument">&2 ; exit 1 ;;
